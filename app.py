@@ -4,6 +4,9 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from app import app, db
+from models import Code
+from auth import admin_required
 import re
 import os
 import jwt
@@ -746,3 +749,29 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+@app.route('/admin/codes', methods=['GET'])
+@admin_required
+def admin_list_codes():
+    """
+    Endpoint to list all codes with pagination.
+    Accessible only by admin users.
+    """
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 100))
+
+    codes_paginated = Code.query.order_by(Code.created_at.desc()).paginate(page, per_page, False)
+
+    codes = [{
+        "code": c.code,
+        "status": c.status,
+        "redeemed_by": c.redeemed_by,
+        "redeemed_at": c.redeemed_at.isoformat() if c.redeemed_at else None
+    } for c in codes_paginated.items]
+
+    return jsonify({
+        "page": page,
+        "per_page": per_page,
+        "total": codes_paginated.total,
+        "codes": codes
+    })
